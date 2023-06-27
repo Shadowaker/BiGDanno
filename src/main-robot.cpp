@@ -108,6 +108,7 @@ void setup()
   delay(500);
 
   WiFi.mode(WIFI_STA);
+  esp_wifi_set_channel(3, WIFI_SECOND_CHAN_NONE);
   if (esp_wifi_set_mac(WIFI_IF_STA, &robotAddress[0]) != ESP_OK)
   {
     Serial.println("Error changing mac");
@@ -142,8 +143,9 @@ void loop()
   else
   {
   // vvvv ----- YOUR AWESOME CODE HERE ----- vvvv //
-
-
+ 
+  motor1.setSpeed(recData.speedmotorLeft);
+  motor2.setSpeed(recData.speedmotorRight);
 
   // -------------------------------------------- //
   }

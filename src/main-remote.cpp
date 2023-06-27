@@ -1,4 +1,9 @@
 #ifdef REMOTE
+
+#include <string>  
+#include <iostream> 
+#include <sstream> 
+
 #include <math.h>
 #include <esp_now.h>
 #include "esp_wifi.h"
@@ -8,18 +13,21 @@
 #include "esp_log.h"
 #include "mac.h"
 
+# define DEBUG_ENABLED true
+
+
 static const char *TAG = "MAIN";
 //------------ turn on generic serial printing
 
-//#define DEBUG_PRINTS
+#define DEBUG_PRINTS
 //data that will be sent to the receiver
 
 typedef struct {
   int16_t speedmotorLeft;
   int16_t speedmotorRight;
-  int16_t packetArg1;
-  int16_t packetArg2;
-  int16_t packetArg3;
+  int16_t packetArg1;     //  [button, value] || 0 -> 102030
+  int16_t packetArg2;     //  lever value
+  int16_t packetArg3;     //  misc
 }
 packet_t;
 
@@ -98,6 +106,7 @@ void setup() {
 
   //---------------------------------------ESP NOW setup
   WiFi.mode(WIFI_STA);
+  esp_wifi_set_channel(3, WIFI_SECOND_CHAN_NONE);
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
@@ -122,8 +131,6 @@ void setup() {
   Led.ledOn();
 }
 
-
-
 void loop() {
   //read pots values
   int strValue = analogRead(steerPot);
@@ -133,14 +140,128 @@ void loop() {
   int leverValue = analogRead(leverPot);
   delay(3);
   current_time = millis(); 
-  bool rightValue = !digitalRead(rightBtn);
-  bool leftValue = !digitalRead(leftBtn);
+  bool leftValue = !digitalRead(rightBtn);
+  bool rightValue = !digitalRead(leftBtn);
   bool topValue = !digitalRead(topBtn);
   
-  // vvvv ----- YOUR AWESOME CODE HERE ----- vvvv //
+  // vvvvvv CODE vvvvvv //
+
+  static int  i = 0;   
+  static int  t = 0;
+  static int  j = 0;
+
+  if (i == 170 && DEBUG_ENABLED) {
+    Serial.println("-------------------------------------\n");
+    Serial.printf("Steer: %d\n", strValue);
+    Serial.printf("Acc: %d\n", accValue);
+    Serial.printf("leverValue: %d\n", leverValue);
+    Serial.printf("rValue: %d - lValue: %d - topValue: %d\n",  rightValue, leftValue, topValue);
+    i = 0;
+  }
+  else {
+    i++;
+  }
+  if (t == 1)
+  {
+    if (j == 12)
+    {
+      j = 0;
+      t = 0;
+    }
+    else {
+      j++;
+    }
+  }
 
 
+  // Stop range 360 - 560
+  
+  sentData.packetArg2 = leverValue;
+  sentData.packetArg3 = 0;
+  sentData.packetArg1 = 0;
+  sentData.speedmotorLeft = 0;
+  sentData.speedmotorRight = 0;
 
+  
+  
+  /*
+  accValue-=512;
+  strValue-=512;
+
+  if ((accValue < -152 || accValue > 48) && (strValue < -152 || strValue > 48) && ((pow(accValue,2.) + pow(strValue,2.)) == 262144)) {
+    sentData.speedmotorLeft=0;
+    sentData.speedmotorRight=0;
+  }*/
+ 
+  
+  if (accValue == 0)
+  {
+    if (rightBtn) {
+      sentData.speedmotorLeft = -512;
+      sentData.speedmotorRight = 512;
+    }
+    else {
+      sentData.speedmotorLeft = -400;
+      sentData.speedmotorRight = 400;
+    }
+  }
+  else if (accValue == 1023)
+  {
+    if (rightBtn) {
+      sentData.speedmotorLeft = 512;
+      sentData.speedmotorRight = -512;
+    }
+    else {
+      sentData.speedmotorLeft = 400;
+      sentData.speedmotorRight = -400;
+    }
+  }
+  if (strValue == 0)
+  {
+    if (rightBtn) {
+      sentData.speedmotorLeft = -512;
+      sentData.speedmotorRight = -512;
+    }
+    else {
+      sentData.speedmotorLeft = -400;
+      sentData.speedmotorRight = -400;
+    }
+  }
+  else if (strValue == 1023)
+  {
+    if (rightBtn) {
+      sentData.speedmotorLeft = 512;
+      sentData.speedmotorRight = 512;
+    }
+    else {
+      sentData.speedmotorLeft = 400;
+      sentData.speedmotorRight = 400;
+    }
+  }
+  if (topValue == 1)
+    {
+    sentData.speedmotorLeft = 0;
+    sentData.speedmotorRight = 0;
+  }
+
+  if (leftValue) {
+    t = 1;
+  }
+  if (t == 1)
+  {
+    sentData.speedmotorLeft = 512;
+    sentData.speedmotorRight = 512;
+  }
+  
+  if (topValue == 1)
+    {
+    sentData.speedmotorLeft = 0;
+    sentData.speedmotorRight = 0;
+  }
+  
+  // Send data to robot
+
+  
   // -------------------------------------------- //
   esp_err_t result = -1;
   result = esp_now_send(robotAddress, (uint8_t *) &sentData, sizeof(sentData));
