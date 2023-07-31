@@ -13,13 +13,13 @@
 #include "esp_log.h"
 #include "mac.h"
 
-# define DEBUG_ENABLED true
+# define DEBUG_ENABLED false
+//# define DEBUG_PRINTS
 
 
 static const char *TAG = "MAIN";
 //------------ turn on generic serial printing
 
-#define DEBUG_PRINTS
 //data that will be sent to the receiver
 
 typedef struct {
@@ -164,6 +164,8 @@ void loop() {
 
   int ray = sqrt(normAcc * normAcc + normStr * normStr);  */
 
+  int newLeverValue = map(leverValue, 700, 300, 930, 100);
+  
   if (DEBUG_ENABLED)
   {
     if (i == 85) {
@@ -174,6 +176,7 @@ void loop() {
       //Serial.printf("normAcc: %d\n", normAcc);
       //Serial.printf("ray: %d\n", ray);
       Serial.printf("leverValue: %d\n", leverValue);
+      Serial.printf("newLeverValue: %d\n", newLeverValue);
       Serial.printf("rValue: %d - lValue: %d - topValue: %d\n",  rightValue, leftValue, topValue);
       i = 0;
     }
@@ -194,11 +197,12 @@ void loop() {
   }
 
   // Stop range 360 - 560
-  sentData.packetArg1 = 0;
-  sentData.packetArg2 = leverValue;
+  sentData.packetArg1 = topValue;
+  sentData.packetArg2 = newLeverValue;
   sentData.packetArg3 = 0;
   sentData.speedmotorLeft = 0;
   sentData.speedmotorRight = 0;
+  // 650 300
 
 /*  
   if (ray > 512)
@@ -235,8 +239,8 @@ void loop() {
   if (accValue == 0)
   {
     if (rightBtn) {
-      sentData.speedmotorLeft = -512;
-      sentData.speedmotorRight = 512;
+      sentData.speedmotorLeft = -500;
+      sentData.speedmotorRight = 500;
     }
     else {
       sentData.speedmotorLeft = -400;
@@ -246,19 +250,20 @@ void loop() {
   else if (accValue == 1023)
   {
     if (rightBtn) {
-      sentData.speedmotorLeft = 512;
-      sentData.speedmotorRight = -512;
+      sentData.speedmotorLeft = 500;
+      sentData.speedmotorRight = -500;
     }
     else {
       sentData.speedmotorLeft = 400;
       sentData.speedmotorRight = -400;
     }
   }
+
   if (strValue == 0)
   {
     if (rightBtn) {
-      sentData.speedmotorLeft = -512;
-      sentData.speedmotorRight = -512;
+      sentData.speedmotorLeft = -500;
+      sentData.speedmotorRight = -500;
     }
     else {
       sentData.speedmotorLeft = -400;
@@ -268,14 +273,15 @@ void loop() {
   else if (strValue == 1023)
   {
     if (rightBtn) {
-      sentData.speedmotorLeft = 512;
-      sentData.speedmotorRight = 512;
+      sentData.speedmotorLeft = 500;
+      sentData.speedmotorRight = 500;
     }
     else {
       sentData.speedmotorLeft = 400;
       sentData.speedmotorRight = 400;
     }
   }
+  
 
   if (leftValue) {
     t = 1;
@@ -285,12 +291,6 @@ void loop() {
   {
     sentData.speedmotorLeft = 512;
     sentData.speedmotorRight = 512;
-  }
-  
-  if (topValue == 1)
-    {
-    sentData.speedmotorLeft = 0;
-    sentData.speedmotorRight = 0;
   }
   
   // Send data to robot

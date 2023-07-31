@@ -7,12 +7,14 @@
 #include <ledUtility.h>
 #include "esp_log.h"
 #include "mac.h"
+#include "PIDController.h"
 static const char *TAG = "MAIN";
 
 #define weapPot 7
 
 //------------ turn on generic serial printing
-//#define DEBUG_PRINTS
+//# define DEBUG_PRINTS
+# define DEBUG_ENABLED false
 
 
 #define MOTOR_A_IN1 8
@@ -57,6 +59,8 @@ int recRpwm = 0;
 int recArg1 = 0;
 int recArg2 = 0;
 int recArg3 = 0;
+
+PIDController pid;
 
 
 // Callback when data is received
@@ -123,12 +127,20 @@ void setup()
   esp_now_register_recv_cb(OnDataRecv);
   Led.setBlinks(0);
   Led.ledOn();
+
+  // Dan was here
+  pid.begin();          // initialize the PID instance
+  pid.tune(2, 1, 1);    // Tune the PID, arguments: kP, kI, kD
+  pid.limit(-1023, 1023);    // Limit the PID output between 0 and 255, this is important to get rid of integral windup!
 }
+
 
 void loop()
 {
   int leverValue = analogRead(weapPot);
+
   unsigned long current_time = millis();
+
   if (current_time - lastPacketMillis > failsafeMaxMillis)
   {
     failsafe = true;
@@ -143,20 +155,74 @@ void loop()
   else
   {
   // vvvv ----- YOUR AWESOME CODE HERE ----- vvvv //
- 
+
+  static int t = 0;
+  static unsigned long  oldTime = current_time;
+  pid.setpoint(recArg2);
+  int danno = pid.compute(leverValue);
+  if (danno >= -35 && danno <= 35)
+    danno = 0;
+  
+  if (danno > 512)
+    danno = 512;
+  if (danno < -512)
+    danno = -512;
+
+
+  if (DEBUG_ENABLED)
+  {
+    static int i = 0;
+    if (i == 170) {
+      Serial.printf("LeverWeapon: %d\n", leverValue);
+      Serial.printf("LeverRemote: %d\n", recArg2);
+      Serial.printf("Battery Level: %f\n", Battery.getVoltage());
+      Serial.printf("PID: %d\n", danno);
+      i = 0;
+    }
+    else {
+      i++;
+    }
+  }
+
   motor1.setSpeed(recData.speedmotorLeft);
   motor2.setSpeed(recData.speedmotorRight);
 
+  
+
+  // 950 100 +200
+
+  /*
   if (recArg2 != leverValue && abs(recArg2 - leverValue) > 40)
   {
     if (recArg2 < leverValue)
-      motor3.setSpeed(512);
+      motor3.setSpeed(-500);
     else
-      motor3.setSpeed(-512);
+      motor3.setSpeed(500);
   }
   else
     motor3.setSpeed(0);
-  
+  */
+
+  motor3.setSpeed(danno);
+
+  if (recArg1 == 1 && t == 0) {
+    t = 1;
+    oldTime = current_time;
+  }
+ 
+  if (t == 1) {
+    if (leverValue >= 900 || current_time - oldTime > 500 ) {
+      t = -1;
+      oldTime = current_time;
+    }
+    motor3.setSpeed(350);
+  }
+  if (t == -1) {
+    if (leverValue <= 750 || current_time - oldTime > 500) {
+      t = 0;
+    }
+    motor3.setSpeed(-500);
+  }
 
   // -------------------------------------------- //
   }
